@@ -1,17 +1,4 @@
 defmodule Identicon do
-  @moduledoc """
-  Documentation for Identicon.
-  """
-
-  @doc """
-  Hello world.
-
-  ## Examples
-
-      iex> Identicon.hello
-      :world
-
-  """
   def main(input) do
     input
     |> hash_input
@@ -20,45 +7,48 @@ defmodule Identicon do
     |> filter_odd_squares
     |> build_pixel_map
     |> draw_image
+    |> save_image(input)
   end
 
-  def hash_input(input) do
-    # passes input value to hashing method which returns a list of hex numbers
-    hex = :crypto.hash(:md5, input)
-    |> :binary.bin_to_list
-
-    # pass list of numbers to Identicon.Image to create struct and set list of numbers to hex prop on struct
-    # return struct, which is passed to pick_color
-    %Identicon.Image{hex: hex}
+  def save_image(image, input) do
+    File.write("#{input}.png", image)
   end
 
-  def pick_color(image) do
-    # pattern matching of structs
-    # %Identicon.Image{hex: hex_list} = %Identicon.Image{hex: [13, 245, 187...]}
-    # assigns the value of hex (the list) to hex_list
-    %Identicon.Image{hex: hex_list} = image
-    # assigns first three vlaues in hex_list to r, g, and b
-    [r, g, b | _tail] = hex_list
+  def draw_image(%Identicon.Image{color: color, pixel_map: pixel_map}) do
+    image = :egd.create(250, 250)
+    fill = :egd.color(color)
 
-    # return new struct with added color prop that is a tuple with color values
-    %Identicon.Image{image | color: {r, g, b}}
+    Enum.each pixel_map, fn({start, stop}) ->
+      :egd.filledRectangle(image, start, stop, fill)
+    end
+
+    :egd.render(image)
   end
-  
-  # equivalent JS code to pick_color
-    # pick_color: function(image) {
-    #   image.color = {
-    #     r: image.hex[0],
-    #     g: image.hex[1],
-    #     b: image.hex[2]
-    #   }
 
-    #   return image;
-    # }
+  def build_pixel_map(%Identicon.Image{grid: grid} = image) do
+    pixel_map = Enum.map grid, fn({_code, index}) ->
+      horizontal = rem(index, 5) * 50
+      vertical = div(index, 5) * 50
 
+      top_left = {horizontal, vertical}
+      bottom_right = {horizontal + 50, vertical + 50}
 
-  # pattern matching in parameter
+      {top_left, bottom_right}
+    end
+
+    %Identicon.Image{image | pixel_map: pixel_map}
+  end
+
+  def filter_odd_squares(%Identicon.Image{grid: grid} = image) do
+    grid = Enum.filter grid, fn({code, _index}) ->
+      rem(code, 2) == 0
+    end
+
+    %Identicon.Image{image | grid: grid}
+  end
+
   def build_grid(%Identicon.Image{hex: hex} = image) do
-    grid = 
+    grid =
       hex
       |> Enum.chunk(3)
       |> Enum.map(&mirror_row/1)
@@ -70,21 +60,18 @@ defmodule Identicon do
 
   def mirror_row(row) do
     [first, second | _tail] = row
+
     row ++ [second, first]
   end
 
-  def filter_odd_squares(%Identicon.Image{grid: grid} = image) do
-    grid = Enum.filter grid, fn({code, _index}) ->
-      rem(code, 2) == 0
-    end
-      %Identicon.Image{image| grid: grid}
+  def pick_color(%Identicon.Image{hex: [r, g, b | _tail]} = image) do
+    %Identicon.Image{image | color: {r, g, b}}
   end
 
-  def build_pixel_map() do
-    
-  end
+  def hash_input(input) do
+    hex = :crypto.hash(:md5, input)
+    |> :binary.bin_to_list
 
-  def draw_image() do
-    
+    %Identicon.Image{hex: hex}
   end
 end
